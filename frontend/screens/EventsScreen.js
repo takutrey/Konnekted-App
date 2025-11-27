@@ -41,10 +41,9 @@ dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 dayjs.extend(customParseFormat);
 
-const baseUrl = "https://9nfl5wvn-5050.uks1.devtunnels.ms/events";
-const socketUrl = "https://9nfl5wvn-5050.uks1.devtunnels.ms";
-const remindersBaseUrl =
-  "https://9nfl5wvn-5050.uks1.devtunnels.ms/api/reminders";
+const baseUrl = "https://konnekted-app.onrender.com/events";
+const socketUrl = "https://konnekted-app.onrender.com";
+const remindersBaseUrl = "https://konnekted-app.onrender.com/api/reminders";
 const CACHE_DURATION_MINUTES = 60;
 
 Notifications.setNotificationHandler({
