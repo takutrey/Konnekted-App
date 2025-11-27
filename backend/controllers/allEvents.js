@@ -2,42 +2,80 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const dayjs = require("dayjs");
 
-const AllEventsUrl = "https://allevents.in/harare/all";
+const AllEventsUrls = [
+  "https://allevents.in/harare/all",
+  "https://allevents.in/chitungwiza/all",
+  "https://allevents.in/bulawayo/all",
+  "https://allevents.in/beitbridge/all",
+  "https://allevents.in/marondera/all",
+  "https://allevents.in/mutare",
+  "https://allevents.in/victoria-falls/all",
+];
+
+const sourceUrl = "https://allevents.in";
 
 const scrapeAllEvents = async (req, res) => {
   try {
-    const { data } = await axios.get(AllEventsUrl);
-    const $ = cheerio.load(data);
-
     const events = [];
 
-    $(".event-card").each((_, el) => {
-      const title = $(el).find(".meta .title").text().trim();
-      const dateRaw = $(el).find(".meta-bottom .date").first().text().trim();
-      const date = dayjs(dateRaw).format("ddd, D MMM");
-      const location = $(el).find(".meta .subtitle").text().trim();
-      const link = "https://allevents.in/" + $(el).find("a").attr("href");
+    // Run all URLs at once
+    const requests = AllEventsUrls.map((url) => axios.get(url));
+    const responses = await Promise.all(requests);
 
-      const bannerStyle = $(el).find(".banner-cont").attr("style");
-      let imageUrl = null;
+    for (let i = 0; i < responses.length; i++) {
+      const url = AllEventsUrls[i];
+      const data = responses[i].data;
 
-      const match = bannerStyle?.match(/url\((.*?)\)/);
-      if (match && match[1]) {
-        imageUrl = match[1].replace(/^['"]|['"]$/g, "");
-      }
+      const $ = cheerio.load(data);
 
-      const image = imageUrl;
-      const source = AllEventsUrl;
+      $(".event-card").each((_, el) => {
+        const eventId = $(el).attr("data-eid")?.trim();
+        const title = $(el).find(".meta-middle .title h3").text().trim();
 
-      events.push({ title, date, dateRaw, location, link, image, source });
-    });
-    if (res) {
-      res.status(200).json(events);
-    } else {
-      return events;
+        const dateRaw = $(el).find(".meta-top .date").text().trim();
+        const date = dayjs(dateRaw, "ddd, DD MMM, YYYY - hh:mm A").isValid()
+          ? dayjs(dateRaw, "ddd, DD MMM, YYYY - hh:mm A").format(
+              "ddd, D MMM YYYY - hh:mm A"
+            )
+          : null;
+
+        const location = $(el).find(".meta-middle .location").text().trim();
+
+        // Fix the link
+        const href = $(el).find(".meta-middle .title a").attr("href");
+        // Extract city name dynamically from URL
+        const city = url.split("/")[3] || null;
+        const link = href?.startsWith("http")
+          ? href
+          : `https://allevents.in${href}`;
+
+        // Banner image extraction
+        const bannerStyle = $(el).find(".banner-cont").attr("style");
+        let image = null;
+        if (bannerStyle) {
+          const match = bannerStyle.match(/url\((.*?)\)/);
+          if (match) image = match[1].replace(/['")]+/g, "");
+        }
+
+        events.push({
+          eventId,
+          title,
+          dateRaw,
+          date,
+          location,
+          link,
+          image,
+          source: sourceUrl,
+        });
+      });
     }
-  } catch (error) {
-    console.error("Scraping error:", error.message);
+
+    if (res) return res.status(200).json(events);
+
+    return events;
+  } catch (err) {
+    console.error("Scraping error:", err.message);
+    if (res) return res.status(500).json({ error: err.message });
   }
 };
 

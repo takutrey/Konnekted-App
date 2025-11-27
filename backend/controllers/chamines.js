@@ -43,7 +43,7 @@ const scrapeChamines = async (req, res) => {
         location,
         link,
         image,
-        source,
+        source: chaminesUrl,
       });
     });
 

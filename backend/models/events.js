@@ -4,6 +4,11 @@ const db = require("../config/config");
 const Event = db.define(
   "event",
   {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
     title: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -22,7 +27,7 @@ const Event = db.define(
       allowNull: true,
     },
     image: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT("long"),
       allowNull: true,
     },
     link: {
@@ -49,50 +54,48 @@ const initEventModel = async () => {
   await Event.sync(); // use { force: true } to drop & recreate, or { alter: true }
 };
 
-// Save events (insert new only if not exists)
+// Save events (insert all without deduplication)
 const saveEvents = async (events) => {
   if (!Array.isArray(events) || events.length === 0) {
-    console.log("No events to save.");
+    console.log("❌ No events to save.");
     return;
   }
 
-  const skippedEvents = [];
+  let savedCount = 0;
+  let errorCount = 0;
+
+  console.log(`💾 Attempting to save ${events.length} events to database`);
 
   for (const e of events) {
-    if (!e) {
-      skippedEvents.push(e);
-      continue;
-    }
-
-    // Fallback: use e.source if link is missing
-    const link = e.link || e.source;
-
-    if (!link) {
-      skippedEvents.push(e);
+    if (!e || !e.title) {
+      errorCount++;
       continue;
     }
 
     try {
-      await Event.findOrCreate({
-        where: { link },
-        defaults: {
-          title: e.title || "Untitled Event",
-          dateRaw: e.dateRaw || null,
-          date: e.date || null,
-          location: e.location || "Unknown",
-          image: e.image || null,
-          description: e.description || null,
-        },
+      await Event.create({
+        title: e.title.trim(),
+        dateRaw: e.dateRaw || e.rawDate || null,
+        date: e.date || null,
+        location: e.location || "Unknown Location",
+        time: e.time || null,
+        image: e.image || null,
+        link: e.link || null,
+        price: e.price || null,
+        category: e.category || null,
+        source: e.source || "unknown",
       });
+
+      savedCount++;
+      console.log(`✅ Saved event: ${e.title.trim()}`);
     } catch (error) {
-      console.error("Error saving event:", e, error.message);
+      errorCount++;
+      console.error("❌ Error saving event:", e.title, error.message);
     }
   }
 
-  if (skippedEvents.length > 0) {
-    console.warn("Skipped events due to missing 'link' and 'source':");
-    console.table(skippedEvents);
-  }
+  console.log(`💾 Save Results: ${savedCount} saved, ${errorCount} errors`);
+  return savedCount;
 };
 
 // Get all stored events
@@ -103,9 +106,42 @@ const getStoredEvents = async () => {
   return events.map((e) => e.toJSON());
 };
 
+// Get events by link
+const getEventsBySource = async (source) => {
+  if (!source) {
+    throw new Error("Source parameter is required");
+  }
+
+  const events = await Event.findAll({
+    where: {
+      source: source,
+    },
+    order: [["dateRaw", "ASC"]],
+  });
+
+  return events.map((e) => e.toJSON());
+};
+
+// Get event by link (single result)
+const getEventByLink = async (link) => {
+  if (!link) {
+    throw new Error("Link parameter is required");
+  }
+
+  const event = await Event.findOne({
+    where: {
+      link: link,
+    },
+  });
+
+  return event ? event.toJSON() : null;
+};
+
 module.exports = {
   Event,
   initEventModel,
   saveEvents,
   getStoredEvents,
+  getEventsBySource,
+  getEventByLink,
 };

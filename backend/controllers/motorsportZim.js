@@ -2,7 +2,42 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const dayjs = require("dayjs");
 
-const motorsportsZimbabweUrl = "https://www.motorsportzimbabwe.co.zw/events/";
+const motorsportsZimbabweUrl = "https://motorsportzimbabwe.co.zw/events/";
+
+function parseMotorsportDate(dateRaw) {
+  if (!dateRaw) return null;
+
+  const cleaned = dateRaw.replace(/\s+/g, " ").trim();
+
+  // Case 1: Date range "2025-11-21 - 2025-11-23"
+  if (cleaned.includes(" - ")) {
+    const [startRaw, endRaw] = cleaned.split(" - ").map((s) => s.trim());
+    const start = dayjs(startRaw);
+    const end = dayjs(endRaw);
+
+    if (start.isValid() && end.isValid()) {
+      return {
+        startDate: start.format("YYYY-MM-DD"),
+        endDate: end.format("YYYY-MM-DD"),
+        display: `${start.format("D MMM YYYY")} - ${end.format("D MMM YYYY")}`,
+      };
+    }
+  }
+
+  // Case 2: "2025-11-02 @ 07:00 AM"
+  const [datePart, timePart] = cleaned.split("@").map((s) => s.trim());
+  const parsed = dayjs(`${datePart} ${timePart || ""}`);
+
+  if (parsed.isValid()) {
+    return {
+      startDate: parsed.format("YYYY-MM-DD"),
+      endDate: null,
+      display: parsed.format("D MMM"),
+    };
+  }
+
+  return { startDate: null, endDate: null, display: null };
+}
 
 const scrapeMotorsportsZimbabwe = async (req, res) => {
   try {
@@ -18,7 +53,8 @@ const scrapeMotorsportsZimbabwe = async (req, res) => {
       const dateRaw = $(el).find(".wpem-event-date-time-text").text().trim();
       const location = $(el).find(".wpem-event-location-text").text().trim();
 
-      const date = dayjs(dateRaw).format("ddd, D MMM");
+      const parsedDate = parseMotorsportDate(dateRaw);
+      const date = parsedDate;
       const source = motorsportsZimbabweUrl;
 
       events.push({
@@ -45,5 +81,7 @@ const scrapeMotorsportsZimbabwe = async (req, res) => {
     }
   }
 };
+
+scrapeMotorsportsZimbabwe();
 
 module.exports = { scrapeMotorsportsZimbabwe };

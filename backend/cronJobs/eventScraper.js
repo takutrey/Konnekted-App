@@ -11,38 +11,56 @@ const { scrapeMotorsportsZimbabwe } = require("../controllers/motorsportZim");
 const { scrapeAgricultureZimbabwe } = require("../controllers/zimAgriculture");
 const { scrapeEventsEye } = require("../controllers/tradeShows");
 const { scrapeTicketbox } = require("../controllers/ticketBox");
+const { fetchSerpapiEvents } = require("../controllers/serpapi");
 
-const areEventsEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Run immediately on startup
+(async () => {
+  console.log("Running initial event scraper on startup...");
+  await runScraper();
+})();
 
+// Schedule to run every hour
 cron.schedule("0 * * * *", async () => {
-  console.log("Running event scraper....");
-
-  const rawEvents = await Promise.all([
-    await scrape10TimesEvents(),
-    await scrapeAllEvents(),
-    await scrapeHypeNation(),
-    await scrapePredictHQ(),
-    await scrapeChamines(),
-    await scrapeConferenceAlerts(),
-    await scrapeMotorsportsZimbabwe(),
-    await scrapeAgricultureZimbabwe(),
-    await scrapeEventsEye(),
-    await scrapeTicketbox(),
-  ]);
-
-  const newEvents = rawEvents.flat();
-
-  const oldEvents = await getStoredEvents();
-
-  const fresh = newEvents.filter(
-    (ne) => !oldEvents.some((oe) => areEventsEqual(ne, oe))
-  );
-
-  if (newEvents.length > 0) {
-    await saveEvents(newEvents);
-    emitNewEvents(fresh);
-    console.log("Broadcasted new events");
-  } else {
-    console.log("No new events found");
-  }
+  await runScraper();
 });
+
+async function runScraper() {
+  console.log("Running event scraper at", new Date().toISOString());
+
+  try {
+    const rawEvents = await Promise.all([
+      scrape10TimesEvents(),
+      scrapeAllEvents(),
+      scrapeHypeNation(),
+      /* scrapePredictHQ(), */
+      scrapeChamines(),
+      /* fetchSerpapiEvents(),*/
+      scrapeConferenceAlerts(),
+      scrapeMotorsportsZimbabwe(),
+      scrapeAgricultureZimbabwe(),
+      scrapeEventsEye(),
+      scrapeTicketbox(),
+    ]);
+
+    const newEvents = rawEvents.flat().filter((e) => e && (e.link || e.source));
+
+    console.log(`Scraped ${newEvents.length} total events from all sources`);
+
+    if (newEvents.length === 0) {
+      return;
+    }
+
+    await saveEvents(newEvents);
+
+    // Emit all new events via socket (or you can modify this to only emit if needed)
+    if (newEvents.length > 0) {
+      emitNewEvents(newEvents);
+    } else {
+      console.log("No events to broadcast");
+    }
+  } catch (error) {
+    console.error("Error in scraper:", error);
+  }
+}
+
+module.exports = { runScraper };

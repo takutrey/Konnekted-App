@@ -3,6 +3,7 @@ const cheerio = require("cheerio");
 
 const scrapeEventsEye = async (req, res) => {
   const url = "https://www.eventseye.com/fairs/c1_trade-shows_zimbabwe.html";
+  const sourceUrl = "https://www.eventseye.com";
 
   try {
     const { data } = await axios.get(url);
@@ -33,7 +34,7 @@ const scrapeEventsEye = async (req, res) => {
           venue,
           date,
           category: "trade shows",
-          source,
+          source: sourceUrl,
         });
       }
     });

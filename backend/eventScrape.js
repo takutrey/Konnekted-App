@@ -117,14 +117,9 @@ const scrapeZimCricketMatches = async () => {
         teams,
       });
     });
-
-    console.log(matches);
   } catch (error) {
     console.error("Scraping error:", error);
   }
 };
 
-/*scrapeZimCricketMatches();*/
-/*scrape10TimesEvents();*/
-/*scrapeAllEvents();*/
 scrapeHypeNation();

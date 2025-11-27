@@ -11,17 +11,30 @@ const { scrapeMotorsportsZimbabwe } = require("../controllers/motorsportZim");
 const { scrapeAgricultureZimbabwe } = require("../controllers/zimAgriculture");
 const { scrapeEventsEye } = require("../controllers/tradeShows");
 const { scrapeTicketbox } = require("../controllers/ticketBox");
+const { fetchSerpapiEvents } = require("../controllers/serpapi");
+const { getEventsBySource } = require("../models/events");
 
 router.get("/allevents", scrapeAllEvents);
 router.get("/hype-nation", scrapeHypeNation);
 router.get("/tentimes", scrape10TimesEvents);
-router.get("/predict-hq", scrapePredictHQ);
+/*router.get("/predict-hq", scrapePredictHQ);*/
 router.get("/chamines", scrapeChamines);
+/*router.get("/serpapi-events", fetchSerpapiEvents);*/
 router.get("/conference-alerts", scrapeConferenceAlerts);
 router.get("/motorsports", scrapeMotorsportsZimbabwe);
 router.get("/agric-zim", scrapeAgricultureZimbabwe);
 router.get("/events-eye", scrapeEventsEye);
 router.get("/ticket-box", scrapeTicketbox);
 router.get("/search", searchEvents);
+router.get("/events-by-link/:link", async (req, res) => {
+  try {
+    const { link } = req.params;
+    const events = await getEventsByLink(link);
+    res.status(200).json(events);
+  } catch (error) {
+    console.error("Error fetching events by link:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
 
 module.exports = router;
