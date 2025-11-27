@@ -14,53 +14,69 @@ const { scrapeTicketbox } = require("../controllers/ticketBox");
 const { fetchSerpapiEvents } = require("../controllers/serpapi");
 
 // Run immediately on startup
+// Protect against overlapping scrapes
+let isRunning = false;
+
+// Run scraper safely
+async function runScraper() {
+  if (isRunning) {
+    console.log("⏳ Skipping: previous scrape still running");
+    return;
+  }
+
+  isRunning = true;
+  console.log("🚀 Running event scraper at", new Date().toISOString());
+
+  try {
+    // Run sequentially to reduce CPU blocking
+    const scrapers = [
+      scrape10TimesEvents,
+      scrapeAllEvents,
+      scrapeHypeNation,
+      scrapeChamines,
+      scrapeConferenceAlerts,
+      scrapeMotorsportsZimbabwe,
+      scrapeAgricultureZimbabwe,
+      scrapeEventsEye,
+      scrapeTicketbox,
+    ];
+
+    const results = [];
+
+    for (const scrape of scrapers) {
+      try {
+        const r = await scrape();
+        if (Array.isArray(r)) results.push(...r);
+      } catch (err) {
+        console.error("❌ Error in scraper:", scrape.name, err.message);
+      }
+    }
+
+    const newEvents = results.filter((e) => e && (e.link || e.source));
+
+    console.log(`📌 Collected ${newEvents.length} events`);
+
+    if (newEvents.length > 0) {
+      await saveEvents(newEvents);
+      emitNewEvents(newEvents);
+    }
+  } catch (err) {
+    console.error("❌ Fatal scraper error:", err);
+  }
+
+  isRunning = false;
+}
+
+// Run once on startup
 (async () => {
-  console.log("Running initial event scraper on startup...");
+  console.log("🚀 Initial run on startup");
   await runScraper();
 })();
 
-// Schedule to run every hour
-cron.schedule("0 * * * *", async () => {
+// Once every 24 hours (midnight)
+cron.schedule("0 0 * * *", async () => {
+  console.log("📅 Daily scrape triggered");
   await runScraper();
 });
-
-async function runScraper() {
-  console.log("Running event scraper at", new Date().toISOString());
-
-  try {
-    const rawEvents = await Promise.all([
-      scrape10TimesEvents(),
-      scrapeAllEvents(),
-      scrapeHypeNation(),
-      /* scrapePredictHQ(), */
-      scrapeChamines(),
-      /* fetchSerpapiEvents(),*/
-      scrapeConferenceAlerts(),
-      scrapeMotorsportsZimbabwe(),
-      scrapeAgricultureZimbabwe(),
-      scrapeEventsEye(),
-      scrapeTicketbox(),
-    ]);
-
-    const newEvents = rawEvents.flat().filter((e) => e && (e.link || e.source));
-
-    console.log(`Scraped ${newEvents.length} total events from all sources`);
-
-    if (newEvents.length === 0) {
-      return;
-    }
-
-    await saveEvents(newEvents);
-
-    // Emit all new events via socket (or you can modify this to only emit if needed)
-    if (newEvents.length > 0) {
-      emitNewEvents(newEvents);
-    } else {
-      console.log("No events to broadcast");
-    }
-  } catch (error) {
-    console.error("Error in scraper:", error);
-  }
-}
 
 module.exports = { runScraper };
