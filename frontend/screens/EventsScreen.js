@@ -900,33 +900,18 @@ const EventsScreen = () => {
       }
 
       try {
-        let endpoints = [];
+        let responses = [];
 
         // Determine which endpoints to fetch based on selected category
         if (categoryId === "all") {
-          endpoints = [
-            `${baseUrl}/allevents`,
-            `${baseUrl}/hype-nation`,
-            `${baseUrl}/tentimes`,
-            `${baseUrl}/chamines`,
-            `${baseUrl}/conference-alerts`,
-            `${baseUrl}/motorsports`,
-            `${baseUrl}/agric-zim`,
-            `${baseUrl}/events-eye`,
-            `${baseUrl}/ticket-box`,
-          ];
+          // For "all" category, fetch from the all-events endpoint
+          const response = await axios.get(`${baseUrl}/all-events`);
+          responses = [response];
         } else {
-          endpoints = [`${baseUrl}/${categoryId}`];
+          // For specific categories, fetch from their respective endpoints
+          const response = await axios.get(`${baseUrl}/${categoryId}`);
+          responses = [response];
         }
-
-        const responses = await Promise.all(
-          endpoints.map((endpoint) =>
-            axios.get(endpoint).catch((err) => {
-              console.error(`Error fetching ${endpoint}:`, err.message);
-              return { data: [] };
-            })
-          )
-        );
 
         let combinedEvents = [];
 

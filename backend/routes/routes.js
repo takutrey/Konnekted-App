@@ -13,6 +13,7 @@ const { scrapeEventsEye } = require("../controllers/tradeShows");
 const { scrapeTicketbox } = require("../controllers/ticketBox");
 const { fetchSerpapiEvents } = require("../controllers/serpapi");
 const { getEventsBySource } = require("../models/events");
+const { EventsFromDB } = require("../controllers/dbEvents");
 
 router.get("/allevents", scrapeAllEvents);
 router.get("/hype-nation", scrapeHypeNation);
@@ -25,6 +26,7 @@ router.get("/motorsports", scrapeMotorsportsZimbabwe);
 router.get("/agric-zim", scrapeAgricultureZimbabwe);
 router.get("/events-eye", scrapeEventsEye);
 router.get("/ticket-box", scrapeTicketbox);
+router.get("/all-events", EventsFromDB);
 router.get("/search", searchEvents);
 router.get("/events-by-link/:link", async (req, res) => {
   try {

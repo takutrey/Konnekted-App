@@ -25,6 +25,7 @@
     "puppeteer": "^24.14.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "redis": "^5.10.0",
     "sequelize": "^6.37.7",
     "serpapi": "^2.2.1",
     "socket.io": "^4.8.1"
