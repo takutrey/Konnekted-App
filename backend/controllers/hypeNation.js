@@ -2,7 +2,8 @@ const puppeteer = require("puppeteer");
 const dayjs = require("dayjs");
 const customParseFormat = require("dayjs/plugin/customParseFormat");
 const isSameOrAfter = require("dayjs/plugin/isSameOrAfter");
-
+const { Event } = require("../models/events");
+const redis = require("../utils/cache");
 dayjs.extend(customParseFormat);
 dayjs.extend(isSameOrAfter);
 
@@ -49,12 +50,12 @@ const scrapeHypeNation = async (req, res) => {
             const dateElements = card.querySelectorAll(
               ".text-sm.text-gray-600"
             );
-            let dateRaw = "";
+            let dateStr = "";
             let location = "";
 
             if (dateElements.length > 0) {
               // First .text-sm.text-gray-600 contains the date
-              dateRaw = dateElements[0].textContent.trim();
+              dateStr = dateElements[0].textContent.trim();
 
               // Second .text-sm.text-gray-600 contains the location
               if (dateElements.length > 1) {
@@ -75,7 +76,7 @@ const scrapeHypeNation = async (req, res) => {
 
             return {
               title: title || altText,
-              dateRaw,
+              dateStr,
               location,
               price,
               image,
@@ -98,12 +99,13 @@ const scrapeHypeNation = async (req, res) => {
       .map((event) => {
         let parsedDate = null;
         let formattedDate = null;
+        let dateRaw = null;
         let time = null;
 
-        if (event.dateRaw && event.dateRaw.includes("-")) {
+        if (event.dateStr && event.dateStr.includes("-")) {
           try {
             // Split date and time: "2025-11-30 - 05:30"
-            const parts = event.dateRaw.split(" - ");
+            const parts = event.dateStr.split(" - ");
             if (parts.length === 2) {
               const datePart = parts[0].trim();
               const timePart = parts[1].trim();
@@ -117,18 +119,19 @@ const scrapeHypeNation = async (req, res) => {
               if (parsed.isValid()) {
                 parsedDate = parsed;
                 formattedDate = parsed.format("ddd, D MMM YYYY");
+                dateRaw = parsed.format("DD/MM/YYYY");
                 time = parsed.format("HH:mm");
               }
             }
           } catch (error) {
-            console.error(`Date parsing error for: ${event.dateRaw}`, error);
+            console.error(`Date parsing error for: ${event.dateStr}`, error);
           }
         }
 
         return {
           title: event.title,
           date: formattedDate,
-          dateRaw: event.dateRaw,
+          dateRaw, // Formatted as dd/mm/yyyy for sorting
           time: time,
           location: event.location,
           price: event.price,
@@ -166,4 +169,30 @@ const scrapeHypeNation = async (req, res) => {
   }
 };
 
-module.exports = { scrapeHypeNation };
+const getHypeNationEvents = async (req, res) => {
+  try {
+    const cachedEvents = await redis.get("latestEvents");
+
+    if (cachedEvents) {
+      const allCachedEvents = JSON.parse(cachedEvents);
+
+      const hypeNationCachedEvents = allCachedEvents.filter(
+        (event) => event.source === hypeNationUrl
+      );
+
+      return res.status(200).json(hypeNationCachedEvents);
+    }
+    const events = await Event.findAll({
+      where: {
+        source: hypeNationUrl,
+      },
+      order: [["dateRaw", "ASC"]],
+    });
+
+    return res.status(200).json(events);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { scrapeHypeNation, getHypeNationEvents };

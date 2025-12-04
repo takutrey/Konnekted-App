@@ -1,6 +1,8 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const dayjs = require("dayjs");
+const { Event } = require("../models/events");
+const redis = require("../utils/cache");
 
 const AllEventsUrls = [
   "https://allevents.in/harare/all",
@@ -32,12 +34,22 @@ const scrapeAllEvents = async (req, res) => {
         const eventId = $(el).attr("data-eid")?.trim();
         const title = $(el).find(".meta-middle .title h3").text().trim();
 
-        const dateRaw = $(el).find(".meta-top .date").text().trim();
-        const date = dayjs(dateRaw, "ddd, DD MMM, YYYY - hh:mm A").isValid()
-          ? dayjs(dateRaw, "ddd, DD MMM, YYYY - hh:mm A").format(
-              "ddd, D MMM YYYY - hh:mm A"
-            )
-          : null;
+        const dateStr = $(el).find(".meta-top .date").text().trim();
+
+        let dateRaw = null;
+        let date = null;
+
+        try {
+          // Parse AllEvents date format: "Sat, 14 Dec, 2024 - 18:00"
+          const parsed = dayjs(dateStr, "ddd, DD MMM, YYYY - HH:mm");
+
+          if (parsed.isValid()) {
+            dateRaw = parsed.format("DD/MM/YYYY");
+            date = parsed.format("ddd, D MMM YYYY - HH:mm");
+          }
+        } catch (e) {
+          console.error(`Date parsing error: ${dateStr}`, e);
+        }
 
         const location = $(el).find(".meta-middle .location").text().trim();
 
@@ -57,18 +69,24 @@ const scrapeAllEvents = async (req, res) => {
           if (match) image = match[1].replace(/['")]+/g, "");
         }
 
-        events.push({
-          eventId,
-          title,
-          dateRaw,
-          date,
-          location,
-          link,
-          image,
-          source: sourceUrl,
-        });
+        if (title) {
+          events.push({
+            eventId,
+            title,
+            date, // Formatted display date
+            dateRaw, // Formatted as dd/mm/yyyy for sorting
+            location,
+            link,
+            image,
+            source: sourceUrl,
+            sortDate: dayjs(dateRaw, "DD/MM/YYYY").toDate(),
+          });
+        }
       });
     }
+
+    // Sort all events by date
+    events.sort((a, b) => a.sortDate - b.sortDate);
 
     if (res) return res.status(200).json(events);
 
@@ -79,4 +97,30 @@ const scrapeAllEvents = async (req, res) => {
   }
 };
 
-module.exports = { scrapeAllEvents };
+const getAllEvents = async (req, res) => {
+  try {
+    const cachedEvents = await redis.get("latestEvents");
+
+    if (cachedEvents) {
+      const allCachedEvents = JSON.parse(cachedEvents);
+
+      const allEventsCached = allCachedEvents.filter(
+        (event) => event.source === sourceUrl
+      );
+
+      return res.status(200).json(allEventsCached);
+    }
+    const events = await Event.findAll({
+      where: {
+        source: sourceUrl,
+      },
+      order: [["dateRaw", "ASC"]],
+    });
+
+    return res.status(200).json(events);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { scrapeAllEvents, getAllEvents };

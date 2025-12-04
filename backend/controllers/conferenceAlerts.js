@@ -1,5 +1,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
+const { Event } = require("../models/events");
+const redis = require("../utils/cache");
 
 const conferenceAlerts = "https://conferencealerts.co.in/zimbabwe";
 
@@ -47,4 +49,34 @@ const scrapeConferenceAlerts = async (req, res) => {
   }
 };
 
-module.exports = { scrapeConferenceAlerts };
+const getConferenceAlertEvents = async (req, res) => {
+  try {
+    const cachedEvents = await redis.get("latestEvents");
+
+    if (cachedEvents) {
+      const allCachedEvents = JSON.parse(cachedEvents);
+
+      const cachedConferenceEvents = allCachedEvents.filter(
+        (event) => event.source === conferenceAlerts
+      );
+
+      return res.status(200).json(cachedConferenceEvents);
+    }
+
+    const events = await Event.findAll({
+      where: {
+        source: conferenceAlerts,
+      },
+      order: [
+        ["date", "ASC"],
+        ["dateRaw", "ASC"],
+      ],
+    });
+
+    return res.status(200).json(events);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { scrapeConferenceAlerts, getConferenceAlertEvents };

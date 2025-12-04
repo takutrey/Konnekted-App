@@ -1,6 +1,8 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const dayjs = require("dayjs");
+const { Event } = require("../models/events");
+const redis = require("../utils/cache");
 
 const motorsportsZimbabweUrl = "https://motorsportzimbabwe.co.zw/events/";
 
@@ -11,32 +13,23 @@ function parseMotorsportDate(dateRaw) {
 
   // Case 1: Date range "2025-11-21 - 2025-11-23"
   if (cleaned.includes(" - ")) {
-    const [startRaw, endRaw] = cleaned.split(" - ").map((s) => s.trim());
+    const [startRaw] = cleaned.split(" - ").map((s) => s.trim());
     const start = dayjs(startRaw);
-    const end = dayjs(endRaw);
 
-    if (start.isValid() && end.isValid()) {
-      return {
-        startDate: start.format("YYYY-MM-DD"),
-        endDate: end.format("YYYY-MM-DD"),
-        display: `${start.format("D MMM YYYY")} - ${end.format("D MMM YYYY")}`,
-      };
+    if (start.isValid()) {
+      return start.format("DD/MM/YYYY");
     }
   }
 
   // Case 2: "2025-11-02 @ 07:00 AM"
-  const [datePart, timePart] = cleaned.split("@").map((s) => s.trim());
-  const parsed = dayjs(`${datePart} ${timePart || ""}`);
+  const [datePart] = cleaned.split("@").map((s) => s.trim());
+  const parsed = dayjs(datePart);
 
   if (parsed.isValid()) {
-    return {
-      startDate: parsed.format("YYYY-MM-DD"),
-      endDate: null,
-      display: parsed.format("D MMM"),
-    };
+    return parsed.format("DD/MM/YYYY");
   }
 
-  return { startDate: null, endDate: null, display: null };
+  return null;
 }
 
 const scrapeMotorsportsZimbabwe = async (req, res) => {
@@ -50,22 +43,27 @@ const scrapeMotorsportsZimbabwe = async (req, res) => {
         $(el).find("a.wpem-event-action-url").first().attr("href")?.trim() ||
         "";
       const title = $(el).find("h3.wpem-heading-text").text().trim();
-      const dateRaw = $(el).find(".wpem-event-date-time-text").text().trim();
+      const dateStr = $(el).find(".wpem-event-date-time-text").text().trim();
       const location = $(el).find(".wpem-event-location-text").text().trim();
 
-      const parsedDate = parseMotorsportDate(dateRaw);
-      const date = parsedDate;
+      const dateRaw = parseMotorsportDate(dateStr);
       const source = motorsportsZimbabweUrl;
 
-      events.push({
-        title,
-        dateRaw,
-        date,
-        location,
-        link,
-        source,
-      });
+      if (title && dateRaw) {
+        events.push({
+          title,
+          date: dateStr, // Original date string for display
+          dateRaw, // Formatted as dd/mm/yyyy for sorting
+          location,
+          link,
+          source,
+          sortDate: dayjs(dateRaw, "DD/MM/YYYY").toDate(),
+        });
+      }
     });
+
+    // Sort by date
+    events.sort((a, b) => a.sortDate - b.sortDate);
 
     if (res) {
       res.status(200).json(events);
@@ -82,6 +80,31 @@ const scrapeMotorsportsZimbabwe = async (req, res) => {
   }
 };
 
-scrapeMotorsportsZimbabwe();
+const getMotorsportEvents = async (req, res) => {
+  try {
+    const cachedEvents = await redis.get("latestEvents");
 
-module.exports = { scrapeMotorsportsZimbabwe };
+    if (cachedEvents) {
+      const allCachedEvents = JSON.parse(cachedEvents);
+
+      const cachedMotorsportEvents = allCachedEvents.filter(
+        (event) => event.source === motorsportsZimbabweUrl
+      );
+
+      return res.status(200).json(cachedMotorsportEvents);
+    }
+
+    const events = await Event.findAll({
+      where: {
+        source: motorsportsZimbabweUrl,
+      },
+      order: [["dateRaw", "ASC"]],
+    });
+
+    return res.status(200).json(events);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { scrapeMotorsportsZimbabwe, getMotorsportEvents };

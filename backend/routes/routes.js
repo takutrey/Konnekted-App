@@ -1,31 +1,36 @@
 const express = require("express");
 const router = express.Router();
-const { scrapeAllEvents } = require("../controllers/allEvents");
-const { scrapeHypeNation } = require("../controllers/hypeNation");
-const { scrape10TimesEvents } = require("../controllers/tenTimes");
+const { getAllEvents } = require("../controllers/allEvents");
+const { getHypeNationEvents } = require("../controllers/hypeNation");
+const { getTenTimesEvents } = require("../controllers/tenTimes");
 const { searchEvents } = require("../controllers/search");
 const { scrapePredictHQ } = require("../controllers/predictHQ");
-const { scrapeChamines } = require("../controllers/chamines");
-const { scrapeConferenceAlerts } = require("../controllers/conferenceAlerts");
-const { scrapeMotorsportsZimbabwe } = require("../controllers/motorsportZim");
-const { scrapeAgricultureZimbabwe } = require("../controllers/zimAgriculture");
-const { scrapeEventsEye } = require("../controllers/tradeShows");
-const { scrapeTicketbox } = require("../controllers/ticketBox");
+const { getChaminesEvents } = require("../controllers/chamines");
+const { getConferenceAlertEvents } = require("../controllers/conferenceAlerts");
+const { getMotorsportEvents } = require("../controllers/motorsportZim");
+const {
+  scrapeAgricultureZimbabwe,
+  getZimAgricEvents,
+} = require("../controllers/zimAgriculture");
+const { getTradeShowsEvents } = require("../controllers/tradeShows");
+const { getTicketBoxEvents } = require("../controllers/ticketBox");
 const { fetchSerpapiEvents } = require("../controllers/serpapi");
 const { getEventsBySource } = require("../models/events");
 const { EventsFromDB } = require("../controllers/dbEvents");
+const { getZimTicketsEvents } = require("../controllers/zimTickets");
 
-router.get("/allevents", scrapeAllEvents);
-router.get("/hype-nation", scrapeHypeNation);
-router.get("/tentimes", scrape10TimesEvents);
+router.get("/allevents", getAllEvents);
+router.get("/hype-nation", getHypeNationEvents);
+router.get("/tentimes", getTenTimesEvents);
 /*router.get("/predict-hq", scrapePredictHQ);*/
-router.get("/chamines", scrapeChamines);
+router.get("/chamines", getChaminesEvents);
 /*router.get("/serpapi-events", fetchSerpapiEvents);*/
-router.get("/conference-alerts", scrapeConferenceAlerts);
-router.get("/motorsports", scrapeMotorsportsZimbabwe);
-router.get("/agric-zim", scrapeAgricultureZimbabwe);
-router.get("/events-eye", scrapeEventsEye);
-router.get("/ticket-box", scrapeTicketbox);
+router.get("/conference-alerts", getConferenceAlertEvents);
+router.get("/motorsports", getMotorsportEvents);
+router.get("/agric-zim", getZimAgricEvents);
+router.get("/events-eye", getTradeShowsEvents);
+router.get("/ticket-box", getTicketBoxEvents);
+router.get("/zim-tickets", getZimTicketsEvents);
 router.get("/all-events", EventsFromDB);
 router.get("/search", searchEvents);
 router.get("/events-by-link/:link", async (req, res) => {

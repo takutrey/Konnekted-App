@@ -22,7 +22,9 @@ async function runScraper() {
     const events = await scrapeNow();
     await saveEvents(events);
 
-    await redis.set("latestEvents", JSON.stringify(events));
+    await redis.set("latestEvents", JSON.stringify(events), {
+      EX: 21600,
+    });
 
     console.log("Cache and db updated");
   } catch (err) {

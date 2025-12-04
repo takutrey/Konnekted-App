@@ -7,6 +7,7 @@ const { scrapeMotorsportsZimbabwe } = require("./motorsportZim");
 const { scrapeAgricultureZimbabwe } = require("./zimAgriculture");
 const { scrapeEventsEye } = require("./tradeShows");
 const { scrapeTicketbox } = require("./ticketBox");
+const { scrapeZimTickets } = require("./zimTickets");
 
 async function scrapeNow() {
   const scrapers = [
@@ -19,6 +20,7 @@ async function scrapeNow() {
     scrapeAgricultureZimbabwe,
     scrapeEventsEye,
     scrapeTicketbox,
+    scrapeZimTickets,
   ];
 
   const results = [];

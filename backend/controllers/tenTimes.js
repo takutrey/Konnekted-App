@@ -3,6 +3,8 @@ const puppeteer = require("puppeteer");
 const dayjs = require("dayjs");
 const isSameOrAfter = require("dayjs/plugin/isSameOrAfter");
 dayjs.extend(isSameOrAfter);
+const { Event } = require("../models/events");
+const redis = require("../utils/cache");
 
 const Ten10TimesUrl = "https://10times.com/zimbabwe";
 
@@ -137,4 +139,34 @@ const scrape10TimesEvents = async (req, res) => {
   }
 };
 
-module.exports = { scrape10TimesEvents };
+const getTenTimesEvents = async (req, res) => {
+  try {
+    const cachedEvents = await redis.get("latestEvents");
+
+    if (cachedEvents) {
+      const allCachedEvents = JSON.parse(cachedEvents);
+
+      const cachedTenTimesEvents = allCachedEvents.filter(
+        (event) => event.source === Ten10TimesUrl
+      );
+
+      return res.status(200).json(cachedTenTimesEvents);
+    }
+
+    const events = await Event.findAll({
+      where: {
+        source: Ten10TimesUrl,
+      },
+      order: [
+        ["date", "ASC"],
+        ["dateRaw", "ASC"],
+      ],
+    });
+
+    return res.status(200).json(events);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { scrape10TimesEvents, getTenTimesEvents };
